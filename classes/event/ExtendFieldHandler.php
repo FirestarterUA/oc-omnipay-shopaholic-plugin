@@ -24,6 +24,39 @@ class ExtendFieldHandler
         });
     }
 
+    protected function getGatewayNamespaces()
+    {
+        $file = base_path() . '/vendor/composer/autoload_psr4.php';
+        if (is_readable($file)) {
+            $namespaces = include $file;
+            return array_keys($namespaces);
+        }
+        return array();
+    }
+
+    /**
+     * Returns an array of gateway IDs (short names) extracted from the registered namespaces
+     * @return array
+     */
+    public function getGatewayIds()
+    {
+        $gateways = array();
+        
+        foreach ($this->getGatewayNamespaces() as $namespace) {
+            if (strpos($namespace, 'Omnipay') !== 0) {
+                continue;
+            }
+            $matches = array();
+            preg_match('/Omnipay\\\(.+?)\\\/', $namespace, $matches);
+
+            if (isset($matches[1])) {
+                $gateways[] = trim($matches[1]);
+            }
+        }
+
+        return $gateways;
+    }
+
     /**
      * Extend settings fields
      * @param \Backend\Widgets\Form $obWidget
@@ -43,7 +76,15 @@ class ExtendFieldHandler
         //Get payment gateway list
         $arPaymentGatewayList = [];
 
+        foreach ($this->getGatewayIds() as $id) {
+            $class = \Omnipay\Common\Helper::getGatewayClassName($id);
+            if (class_exists($class)) {
+                \Omnipay\Omnipay::register($id);
+            }
+        }
+
         $arGatewayList = Omnipay::getFactory()->find();
+
         if (!empty($arGatewayList)) {
             foreach ($arGatewayList as $sGatewayName) {
                 $arPaymentGatewayList[$sGatewayName] = $sGatewayName;
